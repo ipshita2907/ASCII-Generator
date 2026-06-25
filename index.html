@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASCII Camera</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="captureCanvas" style="display:none;"></canvas>
+
+    <!-- Left control panel -->
+    <div class="style-panel" id="stylePanel">
+        <div class="panel-header">
+            <h3>ASCII Camera</h3>
+            <span class="fps-badge" id="fpsDisplay">-- fps</span>
+        </div>
+
+        <section class="panel-section">
+            <h4 class="section-title">Presets</h4>
+            <div class="style-options">
+                <button class="style-btn active" data-style="classic">
+                    <span class="style-name">Punk</span>
+                    <span class="style-chars">@%#*+=-:.</span>
+                </button>
+                <button class="style-btn" data-style="numbers">
+                    <span class="style-name">Y2K</span>
+                    <span class="style-chars">9876543210</span>
+                </button>
+                <button class="style-btn" data-style="hindi">
+                    <span class="style-name">Mantra</span>
+                    <span class="style-chars">. १ २ ३ ५ ९ र न म भ</span>
+                </button>
+                <button class="style-btn" data-style="matrix">
+                    <span class="style-name">Red Pill</span>
+                    <span class="style-chars">01アイウエオカキク</span>
+                </button>
+                <button class="style-btn" data-style="blocks">
+                    <span class="style-name">Tetris</span>
+                    <span class="style-chars">█▓▒░ </span>
+                </button>
+                <button class="style-btn" data-style="minimal">
+                    <span class="style-name">Vapor</span>
+                    <span class="style-chars">.·:- </span>
+                </button>
+            </div>
+        </section>
+
+        <section class="panel-section">
+            <h4 class="section-title">Custom Charset <span class="hint">dark → light</span></h4>
+            <div class="custom-charset-row">
+                <input type="text" id="customCharset" class="custom-input" placeholder="e.g.  #Oo. ">
+                <button id="applyCustom" class="apply-btn">Apply</button>
+            </div>
+        </section>
+
+        <section class="panel-section">
+            <h4 class="section-title">Density</h4>
+            <div class="density-control">
+                <input type="range" id="densitySlider" min="0.5" max="2" step="0.1" value="1" class="density-slider">
+                <span id="densityValue" class="density-value">1.0×</span>
+            </div>
+        </section>
+
+        <section class="panel-section">
+            <h4 class="section-title">Display</h4>
+            <div class="toggle-row">
+                <label class="toggle-label">
+                    <input type="checkbox" id="hideBoxToggle" class="toggle-checkbox">
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    <span class="toggle-text">Fullscreen ASCII</span>
+                </label>
+            </div>
+            <div class="toggle-row">
+                <label class="toggle-label">
+                    <input type="checkbox" id="colorModeToggle" class="toggle-checkbox">
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    <span class="toggle-text">Color Mode</span>
+                </label>
+            </div>
+        </section>
+
+        <section class="panel-section color-section" id="colorSection">
+            <h4 class="section-title">ASCII Color</h4>
+            <div class="color-picker-container">
+                <div class="color-gradient" id="colorGradient">
+                    <div class="color-selector" id="colorSelector"></div>
+                </div>
+                <div class="hue-slider-container">
+                    <div class="hue-slider" id="hueSlider">
+                        <div class="hue-selector" id="hueSelector"></div>
+                    </div>
+                </div>
+                <div class="color-info">
+                    <div class="color-swatch-container">
+                        <div class="color-swatch" id="colorSwatch"></div>
+                    </div>
+                    <div class="color-inputs">
+                        <div class="rgb-inputs">
+                            <label>R</label>
+                            <input type="number" id="rInput" min="0" max="255" value="0" class="rgb-input">
+                            <label>G</label>
+                            <input type="number" id="gInput" min="0" max="255" value="255" class="rgb-input">
+                            <label>B</label>
+                            <input type="number" id="bInput" min="0" max="255" value="0" class="rgb-input">
+                        </div>
+                        <div class="hex-input-container">
+                            <label>Hex</label>
+                            <input type="text" id="hexInput" value="#00ff00" class="hex-input" placeholder="#00ff00" maxlength="7">
+                        </div>
+                    </div>
+                </div>
+                <div class="color-slots" id="colorSlots"></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Camera controls -->
+    <div class="controls">
+        <button id="startBtn">Start</button>
+        <button id="stopBtn" disabled>Stop</button>
+    </div>
+
+    <!-- Download/record controls -->
+    <div class="download-controls">
+        <button id="downloadTextBtn" disabled>Text</button>
+        <button id="downloadImageBtn" disabled>Image</button>
+        <button id="downloadVideoBtn" disabled>● Rec</button>
+        <button id="stopVideoBtn" disabled style="display:none;">■ Stop</button>
+    </div>
+
+    <div id="errorMsg" class="error-message" style="display:none;"></div>
+
+    <div id="countdownOverlay" class="countdown-overlay" style="display:none;">
+        <div class="countdown-number" id="countdownNumber">3</div>
+    </div>
+
+    <!-- ASCII overlay box (draggable + resizable) -->
+    <div id="asciiBox" class="ascii-box">
+        <canvas id="asciiCanvas" class="ascii-canvas"></canvas>
+        <div class="resize-handle resize-handle-nw"></div>
+        <div class="resize-handle resize-handle-ne"></div>
+        <div class="resize-handle resize-handle-sw"></div>
+        <div class="resize-handle resize-handle-se"></div>
+        <div class="resize-handle resize-handle-n"></div>
+        <div class="resize-handle resize-handle-s"></div>
+        <div class="resize-handle resize-handle-w"></div>
+        <div class="resize-handle resize-handle-e"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
