@@ -47,7 +47,7 @@ body {
     position: absolute;
     left: 16px;
     top: 16px;
-    width: 268px;
+    width: clamp(250px, 22vw, 300px);
     background: var(--glass-bg);
     backdrop-filter: blur(40px) saturate(180%);
     -webkit-backdrop-filter: blur(40px) saturate(180%);
@@ -62,6 +62,11 @@ body {
         0 0 0 0.5px rgba(255,255,255,0.05) inset,
         0 24px 48px rgba(0, 0, 0, 0.55),
         0 8px 16px rgba(0, 0, 0, 0.35);
+    transition: max-height 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.style-panel.collapsed {
+    max-height: 54px;
+    overflow: hidden;
 }
 .style-panel::before {
     content: '';
@@ -89,6 +94,11 @@ body {
     -webkit-backdrop-filter: blur(40px);
     z-index: 1;
     border-radius: 20px 20px 0 0;
+    cursor: grab;
+    user-select: none;
+}
+.panel-header:active {
+    cursor: grabbing;
 }
 
 .panel-header h3 {
@@ -97,6 +107,35 @@ body {
     font-weight: 650;
     letter-spacing: 0.01em;
 }
+
+/* Collapse button — lives inside panel header */
+.panel-collapse-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 8px;
+    color: var(--text-muted);
+    padding: 0;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    position: relative;
+}
+.panel-collapse-btn:hover {
+    background: rgba(255,255,255,0.13);
+    color: var(--text-primary);
+}
+.panel-collapse-btn .chevron-icon {
+    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.style-panel.collapsed .panel-collapse-btn .chevron-icon {
+    transform: rotate(180deg);
+}
+
 
 .fps-badge {
     font-family: 'SF Mono', 'Fira Code', monospace;
@@ -449,7 +488,7 @@ body {
 
 .rgb-inputs {
     display: flex;
-    gap: 5px;
+    gap: 6px;
     align-items: center;
 }
 
@@ -465,24 +504,31 @@ body {
 .rgb-input {
     flex: 1;
     min-width: 0;
-    padding: 6px 0;
-    background: rgba(255,255,255,0.07);
-    border: 1px solid rgba(255,255,255,0.09);
-    border-radius: 7px;
+    padding: 8px 2px 8px 6px;
+    background: rgba(255,255,255,0.10);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 9px;
     color: var(--text-primary);
     font-family: 'SF Mono', 'Fira Code', monospace;
-    font-size: 11px;
+    font-size: 13px;
     text-align: center;
     outline: none;
     transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 .rgb-input:focus {
     border-color: var(--accent-border);
-    background: rgba(255,255,255,0.10);
-    box-shadow: 0 0 0 2.5px rgba(61,220,132,0.12);
+    background: rgba(255,255,255,0.14);
+    box-shadow: 0 0 0 2.5px rgba(61,220,132,0.15);
 }
 .rgb-input::-webkit-inner-spin-button,
-.rgb-input::-webkit-outer-spin-button { opacity: 0.4; }
+.rgb-input::-webkit-outer-spin-button {
+    opacity: 0.8;
+    width: 22px;
+    cursor: pointer;
+    margin-left: 4px;
+}
 
 .hex-input-container {
     display: flex;
@@ -560,17 +606,28 @@ body {
     color: var(--accent);
 }
 
-/* ─── Camera controls ───────────────────────────────────────────────────────── */
-.controls {
+.slot-remove {
     position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1001;
-    display: flex;
-    gap: 8px;
+    top: -5px;
+    right: -5px;
+    width: 15px;
+    height: 15px;
+    background: rgba(20,20,20,0.85);
+    border-radius: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: rgba(255,255,255,0.8);
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+    border: 1px solid rgba(255,255,255,0.15);
 }
+.color-slot.filled:hover .slot-remove { display: flex; }
+.slot-remove:hover { background: rgba(220,60,60,0.9); color: #fff; }
 
+/* ─── Shared button base ─────────────────────────────────────────────────────── */
 button {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     cursor: pointer;
@@ -584,72 +641,32 @@ button:disabled {
     box-shadow: none !important;
 }
 
-#startBtn {
-    padding: 10px 26px;
-    background: var(--accent);
-    border: none;
-    border-radius: 12px;
-    color: #000;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.01em;
-    box-shadow: 0 0 24px rgba(61,220,132,0.38), 0 4px 14px rgba(0,0,0,0.35);
-}
-#startBtn:hover:not(:disabled) {
-    background: #5de89a;
-    box-shadow: 0 0 36px rgba(61,220,132,0.52), 0 4px 14px rgba(0,0,0,0.35);
-    transform: translateY(-1px);
-}
-
-#stopBtn {
-    padding: 10px 26px;
-    background: rgba(255,255,255,0.07);
-    border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 12px;
-    color: var(--text-primary);
-    font-size: 13px;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-}
-#stopBtn:hover:not(:disabled) {
-    background: rgba(255,255,255,0.12);
-    border-color: rgba(255,255,255,0.28);
-    transform: translateY(-1px);
-}
-
-/* ─── Download / record controls ────────────────────────────────────────────── */
-.download-controls {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    z-index: 1001;
+/* ─── Export controls (inside panel) ────────────────────────────────────────── */
+.export-controls {
     display: flex;
     gap: 6px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
 }
 
 #downloadTextBtn,
 #downloadImageBtn,
 #downloadVideoBtn {
-    padding: 7px 13px;
-    background: rgba(8, 8, 18, 0.65);
+    flex: 1;
+    padding: 9px 8px;
+    background: rgba(255,255,255,0.07);
     border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 9px;
-    color: rgba(255,255,255,0.65);
-    font-size: 11.5px;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    border-radius: 10px;
+    color: rgba(255,255,255,0.70);
+    font-size: 12px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 #downloadTextBtn:hover:not(:disabled),
 #downloadImageBtn:hover:not(:disabled),
 #downloadVideoBtn:hover:not(:disabled) {
-    background: rgba(8,8,18,0.80);
+    background: rgba(255,255,255,0.13);
     color: #fff;
     border-color: rgba(255,255,255,0.25);
     transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.35);
 }
 
 #downloadVideoBtn:not(:disabled) {
@@ -663,19 +680,21 @@ button:disabled {
 }
 
 #stopVideoBtn {
-    padding: 7px 13px;
+    flex: 1;
+    padding: 9px 8px;
     background: rgba(239,68,68,0.14);
     border: 1px solid rgba(239,68,68,0.38);
-    border-radius: 9px;
+    border-radius: 10px;
     color: #fca5a5;
-    font-size: 11.5px;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    font-size: 12px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 #stopVideoBtn:hover:not(:disabled) {
     background: rgba(239,68,68,0.24);
     transform: translateY(-1px);
 }
+
 
 /* ─── Error / countdown ─────────────────────────────────────────────────────── */
 .error-message {
@@ -707,7 +726,7 @@ button:disabled {
 }
 
 .countdown-number {
-    font-size: 100px;
+    font-size: clamp(3rem, 15vw, 6.25rem);
     font-weight: 700;
     color: #fff;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
@@ -723,8 +742,8 @@ button:disabled {
 /* ─── ASCII box ─────────────────────────────────────────────────────────────── */
 .ascii-box {
     position: absolute;
-    width: 440px;
-    height: 320px;
+    width: clamp(300px, 40vw, 440px);
+    height: clamp(220px, 30vw, 320px);
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -802,3 +821,137 @@ button:disabled {
 .resize-handle-s  { bottom: -4px; cursor: ns-resize; }
 .resize-handle-w  { left: -4px; cursor: ew-resize; }
 .resize-handle-e  { right: -4px; cursor: ew-resize; }
+
+/* ─── Mobile panel toggle button ────────────────────────────────────────────── */
+.panel-toggle {
+    display: none;
+    position: fixed;
+    bottom: 84px;
+    left: 16px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--glass-bg);
+    border: 1px solid var(--border-mid);
+    color: var(--text-primary);
+    align-items: center;
+    justify-content: center;
+    z-index: 1002;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.45);
+    touch-action: manipulation;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+.panel-toggle.active {
+    border-color: var(--accent-border);
+    color: var(--accent);
+    background: rgba(61,220,132,0.10);
+}
+
+/* ─── Panel backdrop (mobile) ───────────────────────────────────────────────── */
+.panel-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.3s;
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+}
+.panel-backdrop.visible { opacity: 1; }
+
+/* ─── Responsive breakpoints ────────────────────────────────────────────────── */
+
+/* xs / sm — phones */
+@media (max-width: 767px) {
+
+    /* Show panel toggle FAB */
+    .panel-toggle { display: flex; }
+
+    /* Panel → bottom sheet */
+    .style-panel {
+        left: 0 !important;
+        right: 0 !important;
+        top: auto !important;
+        bottom: 0 !important;
+        width: 100% !important;
+        max-height: 82svh;
+        border-radius: 20px 20px 0 0 !important;
+        transform: translateY(110%);
+        transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .style-panel.open { transform: translateY(0); }
+
+    /* Drag-handle pill at top of sheet */
+    .panel-header::after {
+        content: '';
+        position: absolute;
+        top: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 36px;
+        height: 4px;
+        background: rgba(255,255,255,0.18);
+        border-radius: 2px;
+    }
+    .panel-header { padding-top: 22px; }
+
+    /* Show backdrop when open */
+    .panel-backdrop { display: block; }
+
+    /* Bigger touch targets */
+    button { min-height: 44px; touch-action: manipulation; }
+    .toggle-label { min-height: 44px; }
+    .style-btn { min-height: 44px; }
+    .apply-btn, .custom-input { min-height: 44px; }
+
+    /* Collapse button: 44×44 tap target on mobile */
+    .panel-collapse-btn {
+        min-width: 44px;
+        min-height: 44px;
+        border-radius: 10px;
+    }
+
+    /* Density slider — bigger thumb and track for touch */
+    .density-slider { height: 8px; }
+    .density-slider::-webkit-slider-thumb { width: 28px; height: 28px; }
+    .density-slider::-moz-range-thumb     { width: 28px; height: 28px; }
+
+    /* Toggle track — expand label hit area already 44px via .toggle-label */
+    .toggle-track { width: 40px; height: 22px; }
+    .toggle-thumb { width: 16px; height: 16px; }
+
+    /* ASCII box — nearly full width on mobile */
+    .ascii-box {
+        width: min(88vw, 440px) !important;
+        height: min(66vw, 320px) !important;
+    }
+
+    /* Error message — full-width safe */
+    .error-message {
+        left: 12px;
+        right: 12px;
+        width: auto;
+        transform: none;
+        text-align: center;
+    }
+}
+
+/* md — tablets: ascii box scales with viewport */
+@media (min-width: 768px) and (max-width: 1023px) {
+    .ascii-box {
+        width: min(55vw, 440px) !important;
+        height: min(41vw, 320px) !important;
+    }
+}
+
+/* lg+ — desktops: FAB hidden, panel is always in-place (draggable + collapsible via header) */
+@media (min-width: 768px) {
+    .panel-backdrop { display: none !important; }
+    .panel-toggle   { display: none !important; }
+    .style-panel    { transform: none !important; }
+}

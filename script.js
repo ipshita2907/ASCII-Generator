@@ -42,7 +42,7 @@ let fpsFrameCount = 0, fpsLastTime = 0;
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
 let video, captureCanvas, captureCtx;
 let asciiBox, asciiCanvas, asciiCtx;
-let startBtn, stopBtn, errorMsg;
+let errorMsg;
 let downloadTextBtn, downloadImageBtn, downloadVideoBtn, stopVideoBtn;
 let countdownOverlay, countdownNumber, fpsDisplay;
 
@@ -54,8 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
     asciiBox       = document.getElementById('asciiBox');
     asciiCanvas    = document.getElementById('asciiCanvas');
     asciiCtx       = asciiCanvas.getContext('2d');
-    startBtn       = document.getElementById('startBtn');
-    stopBtn        = document.getElementById('stopBtn');
     errorMsg       = document.getElementById('errorMsg');
     downloadTextBtn  = document.getElementById('downloadTextBtn');
     downloadImageBtn = document.getElementById('downloadImageBtn');
@@ -67,8 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     measureCharAspect();
 
-    startBtn.addEventListener('click', initCamera);
-    stopBtn.addEventListener('click', stopCamera);
     downloadTextBtn.addEventListener('click', downloadAsText);
     downloadImageBtn.addEventListener('click', downloadAsImage);
     downloadVideoBtn.addEventListener('click', startVideoRecording);
@@ -81,6 +77,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setupDisplayToggles();
     setupColorPicker();
     setupColorSlots();
+    setupMobilePanel();
+    setupDraggablePanel();
     setupInteractiveBox();
 
     // Auto-start camera on page load
@@ -116,22 +114,25 @@ async function initCamera() {
             video: { width: { ideal: 1920 }, height: { ideal: 1080 }, facingMode: 'user' }
         });
         video.srcObject = stream;
+
+        // Wait for metadata before play so dimensions are always ready
+        await new Promise(resolve => {
+            if (video.readyState >= 1) { resolve(); return; }
+            video.addEventListener('loadedmetadata', resolve, { once: true });
+        });
+
         await video.play();
 
-        video.addEventListener('loadedmetadata', () => {
-            captureCanvas.width  = video.videoWidth;
-            captureCanvas.height = video.videoHeight;
+        captureCanvas.width  = video.videoWidth;
+        captureCanvas.height = video.videoHeight;
 
-            asciiBox.classList.add('active');
-            startBtn.disabled       = true;
-            stopBtn.disabled        = false;
-            downloadTextBtn.disabled  = false;
-            downloadImageBtn.disabled = false;
-            downloadVideoBtn.disabled = false;
+        asciiBox.classList.add('active');
+        downloadTextBtn.disabled  = false;
+        downloadImageBtn.disabled = false;
+        downloadVideoBtn.disabled = false;
 
-            fpsLastTime = performance.now();
-            startFrameLoop();
-        }, { once: true });
+        fpsLastTime = performance.now();
+        startFrameLoop();
     } catch (err) {
         errorMsg.textContent = `Camera error: ${err.message}`;
         errorMsg.style.display = 'block';
@@ -143,8 +144,6 @@ function stopCamera() {
     if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; }
     video.srcObject = null;
     asciiBox.classList.remove('active');
-    startBtn.disabled       = false;
-    stopBtn.disabled        = true;
     downloadTextBtn.disabled  = true;
     downloadImageBtn.disabled = true;
     downloadVideoBtn.disabled = true;
@@ -180,7 +179,7 @@ function trackFPS() {
     const now = performance.now();
     if (now - fpsLastTime >= 1000) {
         const fps = Math.round(fpsFrameCount * 1000 / (now - fpsLastTime));
-        fpsDisplay.textContent = `${fps} fps`;
+        if (fpsDisplay) fpsDisplay.textContent = `${fps} fps`;
         fpsFrameCount = 0;
         fpsLastTime = now;
     }
@@ -482,9 +481,6 @@ function setupColorPicker() {
     const hueSelector = document.getElementById('hueSelector');
     const swatch      = document.getElementById('colorSwatch');
     const hexInput    = document.getElementById('hexInput');
-    const rIn         = document.getElementById('rInput');
-    const gIn         = document.getElementById('gInput');
-    const bIn         = document.getElementById('bInput');
 
     let hue = 120, sat = 100, lit = 50;
     let draggingGrad = false, draggingHue = false;
@@ -498,7 +494,6 @@ function setupColorPicker() {
         currentColor = rgbToHex(r, g, b);
         swatch.style.background = currentColor;
         hexInput.value = currentColor;
-        rIn.value = r; gIn.value = g; bIn.value = b;
         refreshGradientBg();
         if (onColorChanged) onColorChanged(currentColor);
     }
@@ -510,7 +505,6 @@ function setupColorPicker() {
         currentColor = hex;
         swatch.style.background = hex;
         hexInput.value = hex;
-        rIn.value = r; gIn.value = g; bIn.value = b;
         syncPickerUI(r, g, b);
     };
 
@@ -550,19 +544,6 @@ function setupColorPicker() {
         applyHSL();
     }
 
-    [rIn, gIn, bIn].forEach(inp => {
-        inp.addEventListener('input', () => {
-            const r = clamp(parseInt(rIn.value) || 0, 0, 255);
-            const g = clamp(parseInt(gIn.value) || 0, 0, 255);
-            const b = clamp(parseInt(bIn.value) || 0, 0, 255);
-            currentColor = rgbToHex(r, g, b);
-            swatch.style.background = currentColor;
-            hexInput.value = currentColor;
-            syncPickerUI(r, g, b);
-            if (onColorChanged) onColorChanged(currentColor);
-        });
-    });
-
     hexInput.addEventListener('input', e => {
         let v = e.target.value;
         if (!v.startsWith('#')) v = '#' + v;
@@ -570,7 +551,6 @@ function setupColorPicker() {
             const r = parseInt(v.slice(1,3),16);
             const g = parseInt(v.slice(3,5),16);
             const b = parseInt(v.slice(5,7),16);
-            rIn.value = r; gIn.value = g; bIn.value = b;
             currentColor = v;
             swatch.style.background = v;
             syncPickerUI(r, g, b);
@@ -583,6 +563,66 @@ function setupColorPicker() {
         if (!v.startsWith('#')) v = '#' + v;
         if (!/^#[0-9A-Fa-f]{6}$/.test(v)) e.target.value = currentColor;
     });
+}
+
+// ─── Panel setup (collapse + drag) ────────────────────────────────────────────
+function setupMobilePanel() {
+    const toggle   = document.getElementById('panelToggle');
+    const panel    = document.getElementById('stylePanel');
+    const backdrop = document.getElementById('panelBackdrop');
+
+    // Mobile bottom-sheet open/close
+    function openPanel()  { panel.classList.add('open'); backdrop.classList.add('visible'); toggle.classList.add('active'); }
+    function closePanel() { panel.classList.remove('open'); backdrop.classList.remove('visible'); toggle.classList.remove('active'); }
+
+    if (toggle) {
+        toggle.addEventListener('click', () => panel.classList.contains('open') ? closePanel() : openPanel());
+    }
+    if (backdrop) {
+        backdrop.addEventListener('click', closePanel);
+    }
+    document.querySelectorAll('.style-btn').forEach(btn =>
+        btn.addEventListener('click', () => { if (window.innerWidth < 768) closePanel(); })
+    );
+
+    // Collapse-to-header toggle (desktop + tablet)
+    const collapseBtn = document.getElementById('panelCollapseBtn');
+    if (collapseBtn) {
+        collapseBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            panel.classList.toggle('collapsed');
+        });
+    }
+}
+
+// ─── Draggable panel ──────────────────────────────────────────────────────────
+function setupDraggablePanel() {
+    const panel  = document.getElementById('stylePanel');
+    const header = document.getElementById('panelHeader');
+    if (!panel || !header) return;
+
+    let dragging = false, startX, startY, startLeft, startTop;
+
+    header.addEventListener('mousedown', (e) => {
+        if (e.target.closest('button')) return;
+        dragging = true;
+        const rect = panel.getBoundingClientRect();
+        startX    = e.clientX;
+        startY    = e.clientY;
+        startLeft = rect.left;
+        startTop  = rect.top;
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const newLeft = Math.max(0, Math.min(window.innerWidth  - panel.offsetWidth,  startLeft + e.clientX - startX));
+        const newTop  = Math.max(0, Math.min(window.innerHeight - panel.offsetHeight, startTop  + e.clientY - startY));
+        panel.style.left = newLeft + 'px';
+        panel.style.top  = newTop  + 'px';
+    });
+
+    document.addEventListener('mouseup', () => { dragging = false; });
 }
 
 // ─── Color slots ──────────────────────────────────────────────────────────────
@@ -601,6 +641,21 @@ function setupColorSlots() {
                     renderSlots();
                     if (loadColorIntoPicker) loadColorIntoPicker(colorSlots[i]);
                 });
+                if (i > 0) {
+                    const rm = document.createElement('span');
+                    rm.className = 'slot-remove';
+                    rm.textContent = '×';
+                    rm.addEventListener('click', e => {
+                        e.stopPropagation();
+                        colorSlots[i] = null;
+                        if (activeSlot === i) {
+                            activeSlot = 0;
+                            if (loadColorIntoPicker) loadColorIntoPicker(colorSlots[0]);
+                        }
+                        renderSlots();
+                    });
+                    slot.appendChild(rm);
+                }
             } else {
                 slot.className = 'color-slot empty';
                 slot.textContent = '+';
